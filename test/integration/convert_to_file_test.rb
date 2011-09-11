@@ -4,30 +4,18 @@ require 'mysql2psql'
 
 class ConvertToFileTest < Test::Unit::TestCase
 
-  class << self
-
-    # This is a suite of tests to verify conversion of full schema and data to file.
-    # The export is done once in the class setup.
-    # Tests inspect specific features of the converted file,
-    # the contents of which are preloaded as the :content attribute of this class
-    #
-    def startup
-      seed_test_database
-      @@options=get_test_config_by_label(:localmysql_to_file_convert_all)
-      @@mysql2psql = Mysql2psql.new([@@options.filepath])
-      @@mysql2psql.convert
-      @@content = IO.read(@@mysql2psql.options.destfile)
-    end
-    def shutdown
-      delete_files_for_test_config(@@options)
-    end
-  end
   def setup
+    seed_test_database
+    @options=get_test_config_by_label(:localmysql_to_file_convert_all)
+    @mysql2psql = Mysql2psql.new([@options.filepath])
+    @mysql2psql.convert
+    @content = IO.read(@mysql2psql.options.destfile)
   end
   def teardown
+    delete_files_for_test_config(@options)
   end
   def content
-    @@content
+    @content
   end
 
   # verify table creation
@@ -102,6 +90,19 @@ class ConvertToFileTest < Test::Unit::TestCase
     match = get_basic_numerics_match( 'f_numeric' )    
     assert_match /numeric/,match[1]    
     #assert_not_nil Regexp.new('CREATE TABLE "numeric_types_basics".*"f_numeric" numeric\(10, 0\)[\w\n]*\)', Regexp::MULTILINE).match( content )
+  end
+
+  # test boolean conversion
+  def get_boolean_column_definition_match(column)
+    Regexp.new('CREATE TABLE "test_boolean_conversion".*"' + column + '" ([^\n]*)[^;]*', Regexp::MULTILINE).match(content)[1]
+  end
+  def test_boolean_default_values
+    assert_match /DEFAULT false/, get_boolean_column_definition_match('bit_1_default_0')
+    assert_match /DEFAULT false/, get_boolean_column_definition_match('tinyint_1_default_0')
+    
+    assert_match /DEFAULT true/, get_boolean_column_definition_match('bit_1_default_1')
+    assert_match /DEFAULT true/, get_boolean_column_definition_match('tinyint_1_default_1')
+    assert_match /DEFAULT true/, get_boolean_column_definition_match('tinyint_1_default_2')
   end
 
   # test autoincrement handling
